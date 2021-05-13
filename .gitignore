@@ -2,6 +2,8 @@ data/street_view/Los Angeles/images/
 
 data/street_view/Los Angeles/segmented/
 
+*.csv
+
 *.pkl
 
 # Saved keras models

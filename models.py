@@ -1,36 +1,36 @@
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
+from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import GridSearchCV
 
-la = pd.read_csv("D:/la.csv", index_col=0)
-la = pd.read_csv("D:/la_tester.csv", index_col=0)
+# VGG16 extracted features
+X = pd.read_csv("X_la_vgg16.csv", index_col=0)
+X["geoid"] = X.index.str.split("_").str[0]
+# Median household income
+y = gpd.read_file(f"data/acs/Los Angeles/acs2019_5yr_B19013_15000US060372732001.geojson")
+y = y[["geoid", "B19013001"]]
+y["B19013001"] = np.log(y["B19013001"])  # Log transform
 
-X = np.array(la.drop(columns=["geoid", "log_B19013001"]).values)
-y = np.array(la["log_B19013001"].values)
+# Join
+la = X.merge(y, on="geoid")
+la = la.dropna()
+
+X = np.array(la.drop(columns=["geoid", "B19013001"]).values)
+y = np.array(la["B19013001"].values)
+del la
 
 # Standardization
 scaler = StandardScaler()
 X = scaler.fit_transform(X)
-# Fit model
-reg = SVR(kernel="rbf", C=0.5, verbose=True)
-# Cross-validation
-scores = cross_val_score(reg, X, y, cv=2)
-print(scores)
-
-
-# Train test split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33,
-                                                    shuffle=True,
-                                                    random_state=123)
-# Standardization using train set
-scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train)
-X_test = scaler.transform(X_test)
-# Fit model
-reg = SVR(kernel="rbf", C=0.1, verbose=True)
-reg.fit(X_train, y_train)
-# Evaluate model
-reg.score(X_test, y_test)
+# Fit models
+param_grid = [{"C": [0.001, 0.1, 1, 10, 20], "kernel": ["linear"]},
+              {"C": [0.001, 0.1, 1, 10, 20], "gamma": [0.1, 0.001, 0.0001], "kernel": ["rbf"]}]
+reg = GridSearchCV(estimator=SVR(verbose=1), param_grid=param_grid, n_jobs=-1,
+                   cv=5, verbose=4, return_train_score=True)
+reg.fit(X, y)
+reg.cv_results_
