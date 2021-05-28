@@ -1,36 +1,137 @@
+import json
 import numpy as np
 import pandas as pd
-import geopandas as gpd
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LassoCV
+from sklearn.linear_model import RidgeCV
 from sklearn.svm import SVR
-from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.model_selection import train_test_split
-from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import GridSearchCV
+from data.acs_load import acs_load
+import matplotlib.pyplot as plt
 
-# VGG16 extracted features
-X = pd.read_csv("X_la_vgg16.csv", index_col=0)
-X["geoid"] = X.index.str.split("_").str[0]
-# Median household income
-y = gpd.read_file(f"data/acs/Los Angeles/acs2019_5yr_B19013_15000US060372732001.geojson")
-y = y[["geoid", "B19013001"]]
-y["B19013001"] = np.log(y["B19013001"])  # Log transform
 
-# Join
-la = X.merge(y, on="geoid")
-la = la.dropna()
+def load_data(city="Los Angeles", split=False):
+    # VGG16 extracted features
+    X = pd.read_csv(f"X_{city}_vgg16.csv", index_col=0)
+    X["geoid"] = X.index.str.split("_").str[0]
 
-X = np.array(la.drop(columns=["geoid", "B19013001"]).values)
-y = np.array(la["B19013001"].values)
-del la
+    # Image coordinates
+    with open(f"./data/street_view/{city}/coordinates.geojson") as file:
+        points = json.load(file)
+    coords = []
+    for filename in points.keys():
+        coords.append([f"{filename}.jpeg",
+                       points[filename]["coordinates"][0],
+                       points[filename]["coordinates"][1]])
+    coords = pd.DataFrame(coords, columns=["filename",
+                                           "longitude",
+                                           "latitude"])
 
-# Standardization
-scaler = StandardScaler()
-X = scaler.fit_transform(X)
-# Fit models
-param_grid = [{"C": [0.001, 0.1, 1, 10, 20], "kernel": ["linear"]},
-              {"C": [0.001, 0.1, 1, 10, 20], "gamma": [0.1, 0.001, 0.0001], "kernel": ["rbf"]}]
-reg = GridSearchCV(estimator=SVR(verbose=1), param_grid=param_grid, n_jobs=-1,
-                   cv=5, verbose=4, return_train_score=True)
-reg.fit(X, y)
-reg.cv_results_
+    # Median household income
+    geometries = acs_load(cities=[city])[city]
+    geometries = geometries[["geoid", "log_B19013001", "geometry"]]
+    geometries = geometries.set_index("geoid")
+
+    # Join with latitude-longitude
+    X = coords.merge(X, left_on="filename", right_index=True)
+    X.drop(columns="filename", inplace=True)
+
+    # Aggregate by block group
+    X = X.groupby("geoid").mean()
+
+    # Join with geometry and income
+    data = X.merge(geometries["log_B19013001"], left_index=True,
+                   right_index=True)
+
+    # Drop missing
+    data = data.dropna()
+    data["geoid"] = data.index
+
+    X = data.drop(columns=["log_B19013001"]).to_numpy()
+    y = data["log_B19013001"].to_numpy()
+
+    return geometries, X, y
+
+
+if __name__ == "__main__":
+    geometries, X, y = load_data(city="Los Angeles")
+
+    # Model objects
+    ols = LinearRegression()
+    lasso = LassoCV(n_alphas=30, max_iter=2000, cv=3)
+    ridge = RidgeCV(alphas=np.arange(0.1, 10, 1), cv=3)
+    reg = SVR(C=20, gamma=0.0001)
+
+    # Train-test split
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
+                                                        random_state=412)
+    train_index = X_train[:, -1]
+    X_train = X_train[:, :-1]
+    test_index = X_test[:, -1]
+    X_test = X_test[:, :-1]
+
+    # Technical regressors
+    X_train = np.concatenate((X_train, X_train**2), axis=1)
+    X_test = np.concatenate((X_test, X_test**2), axis=1)
+
+    # Normalize data
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+
+    # Fit OLS
+    ols.fit(X_train, y_train)
+    print(ols.score(X_test, y_test))
+    # Fit LASSO
+    lasso.fit(X_train, y_train)
+    print(lasso.score(X_test, y_test))
+    # Fit Ridge
+    ridge.fit(X_train, y_train)
+    print(ridge.score(X_test, y_test))
+    # Fit SVM
+    reg.fit(X_train, y_train)
+    print(reg.score(X_test, y_test))
+    print(reg.score(X_train, y_train))
+
+    # Get predictions
+    comparison = geometries.loc[test_index, :]
+    comparison["predictions"] = reg.predict(X_test)
+    comparison = geometries[["geometry"]].merge(comparison[["log_B19013001", "predictions"]],
+                                                how="left",
+                                                left_index=True,
+                                                right_index=True)
+    # Plot predictions vs actual
+    fig, axes = plt.subplots(1, 2, sharex=True, sharey=True, dpi=400)
+    comparison.plot(column="log_B19013001", ax=axes[0], cmap="viridis",
+                    missing_kwds={"color": "lightgrey"},
+                    vmin=8.44, vmax=12.5)
+    comparison.plot(column="predictions", ax=axes[1], cmap="viridis",
+                    missing_kwds={"color": "lightgrey"},
+                    vmin=8.44, vmax=12.5)
+    cols = axes[0].collections[0]
+    colbar = fig.colorbar(cols, ax=axes, shrink=0.6)
+    fig.patch.set_visible(False)
+    axes[0].axis("off")
+    axes[1].axis("off")
+    axes[0].set_title("Actual Income")
+    axes[1].set_title("""Predicted $(R^2 = 0.48)$""")
+    # plt.savefig("./model visualizations/predictions_map.png",
+    #             bbox_inches="tight")
+    plt.show()
+
+    plt.figure(dpi=400)
+    plt.scatter(comparison["predictions"], comparison["log_B19013001"],
+                s=2, color="#4A89F3")
+    plt.xlabel("Predicted Log Income")
+    plt.ylabel("Actual Log Income")
+    plt.xlim(9, 13)
+    plt.ylim(8, 13)
+    plt.text(12.5, 7.25, f"$n={len(y_test)}$")
+    # plt.savefig("./model visualizations/predictions_scatter.png",
+    #             bbox_inches="tight")
+    plt.show()
+
+    # Test a model on New York
+    geometries, X, y = load_data(city="New York")
+    print(reg.score(X[:, :-1], y))

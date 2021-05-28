@@ -28,6 +28,7 @@ def acs_load(cities=["Los Angeles"], ret_coords=False):
         # Get income in thousands of dollars
         acs[city]["B19013001_thousand"] = acs[city]["B19013001"] / 1000
 
+    if ret_coords is True:
         # Coordinates of images in each block group
         with open(f"data/street_view/{city}/coordinates.geojson") as f:
             coords_city = geojson.load(f)
@@ -38,7 +39,6 @@ def acs_load(cities=["Los Angeles"], ret_coords=False):
         coords_city["geoid"] = coords_city["geoid"].str.split("_", n=1, expand=True)[0]
         coords_city = coords_city.drop(columns=["type", "coordinates"])
         coords[city] = coords_city
-    if ret_coords is True:
         return acs, coords
     else:
         return acs

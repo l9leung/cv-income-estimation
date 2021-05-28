@@ -1,8 +1,12 @@
+data/street_view/New York/images/
+
 data/street_view/Los Angeles/images/
 
 data/street_view/Los Angeles/segmented/
 
 *.csv
+
+key.txt
 
 *.pkl
 

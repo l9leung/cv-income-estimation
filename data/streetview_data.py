@@ -8,7 +8,7 @@ from data.generate_coordinates import make_polygons, random_coord
 random.seed(123)
 
 
-def get_images(blocks, width=600, height=400, heading=360, fov=90, pitch=0,
+def get_images(blocks, width=600, height=400, heading=None, fov=90, pitch=0,
                source="default", city="Los Angeles"):
     """
     Retrives a Google Street View static image from the specified lat/long
@@ -21,7 +21,9 @@ def get_images(blocks, width=600, height=400, heading=360, fov=90, pitch=0,
     width : int, Width of the image in pixels. The default is 600.
     height : int, Height of the image in pixels. The default is 400.
     heading : int, Compass heading of the camera in degrees.The default is 0,
-        which indicates north.
+        which indicates north. If no heading is specified, a value will be
+        calculated that directs the camera towards the specified location, from
+        the point at which the closest photograph was taken.
     fov: int, Horizontal field of view of the image in degrees. The default is
         90.
     pitch : int, The up or down angle of the camera in degrees. 0 is flat
@@ -49,14 +51,15 @@ def get_images(blocks, width=600, height=400, heading=360, fov=90, pitch=0,
     # Request parameters
     url = "https://maps.googleapis.com/maps/api/streetview"
     size = f"size={width}x{height}"
-    heading = f"heading={heading}"
+    if heading is not None:
+        heading = f"heading={heading}"
     pitch = f"pitch={pitch}"
     source = "source=outdoor"
 
     for i, block in enumerate(blocks.keys()):
         count = 0
         tries = 0
-        while count < 10 and tries < 100:  # retrieve 10 images per block group
+        while count < 5 and tries < 200:  # retrieve 5 images per block group
             point = random_coord(blocks[block])
             coord = point.coords[0]  # note: this is in longitude, latitude
             location = f"location={coord[1]},{coord[0]}"  # location in latitude, longitude
@@ -65,31 +68,40 @@ def get_images(blocks, width=600, height=400, heading=360, fov=90, pitch=0,
             response = requests.get(metadata_request)
             tries += 1
             if response.ok is True:
-                print(f"""Block #{i}, Try #{tries}: {response.json()["status"]}""")
+                print(f"""Block #{i+1}, Try #{tries}: {response.json()["status"]}""")
                 if response.json()["status"] == "OK":
                     # Save location in dictionary
                     coords[f"{block}_{count}"] = point
                     # Get image
-                    request = f"{url}?{size}&{location}&{heading}&{pitch}&{source}&{key}"
+                    if heading is None:
+                        request = f"{url}?{size}&{location}&{pitch}&{source}&{key}"
+                    else:
+                        request = f"{url}?{size}&{location}&{heading}&{pitch}&{source}&{key}"
                     response = requests.get(request)
                     # Write image to a jpeg file
                     with open(f"data/street_view/{city}/images/{block}_{count}.jpeg", "wb") as f:
                         f.write(response.content)
                     count += 1
-            if tries == 100:  # Cap at 100 requests
+            if tries == 200:  # Cap at 200 requests
                 zero_results.append(block)
 
     # Write coordinates of images to a geojson file
     with open(f"data/street_view/{city}/coordinates.geojson", "w") as f:
         geojson.dump(coords, f)
-    # Write geoids of blocks with no images found
-    with open(f"street_view/{city}/zero_results", "wb") as fp:
-        pickle.dump(zero_results, fp)
+    # # Write geoids of blocks with no images found
+    # with open(f"street_view/{city}/zero_results", "wb") as fp:
+    #     pickle.dump(zero_results, fp)
 
 
 if __name__ == "__main__":
-    city="Los Angeles"
-    with open(f"data/acs/{city}/acs2019_5yr_B19013_15000US060372732001.geojson", "r") as f:
+    # city="Los Angeles"
+    # with open(f"data/acs/{city}/acs2019_5yr_B19013_15000US060372732001.geojson", "r") as f:
+    #     blocks = geojson.load(f)
+    # blocks = make_polygons(blocks)
+    # get_images(blocks, heading=90, city="Los Angeles")  # set heading to east
+
+    city = "New York"
+    with open(f"data/acs/{city}/acs2019_5yr_B19013_15000US360810595004.geojson", "r") as f:
         blocks = geojson.load(f)
     blocks = make_polygons(blocks)
-    get_images(blocks, heading=90, city="Los Angeles")  # set heading to east
+    get_images(blocks, city="New York")

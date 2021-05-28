@@ -1,4 +1,6 @@
+import os
 import numpy as np
+import pandas as pd
 import cv2
 import matplotlib.pyplot as plt
 
@@ -43,3 +45,15 @@ def lab_color_hists(frame, bins=256, mask=None):
                                                     histSize=[bins],  # bin count
                                                     ranges=[0, 256]).ravel()
     return hists
+
+
+if __name__ == "__main__":
+    city = "Los Angeles"
+    n_bins = 50
+    filenames = os.listdir(f"./data/street_view/{city}/images")
+    colorhists = pd.DataFrame(index=filenames, columns=range(n_bins*3))
+    for i, file in enumerate(filenames):
+        frame = cv2.imread(f"./data/street_view/{city}/images/{file}")
+        colorhists.loc[file, :] = lab_color_hists(frame, bins=n_bins)
+        print(f"Finished #{i+1}")
+    colorhists.to_csv(f"X_{city}_colorhists.csv")

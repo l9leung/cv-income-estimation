@@ -19,18 +19,18 @@ plot_model(model, to_file="model visualizations/vgg16_architecture.png",
            dpi=240)
 
 # Dataframe to store itermediate outputs
-filenames = os.listdir("./data/street_view/Los Angeles/images")
+filenames = os.listdir("./data/street_view/New York/images")
 n = len(filenames)
 X = np.zeros(shape=(n, 4096), dtype="float32")
 X = pd.DataFrame(data=X, index=filenames)
 X["filenames"] = X.index
 
 batch_size = 25
-steps = len(X) // 25
+steps = len(X) // 40
 
 datagen = ImageDataGenerator(preprocessing_function=vgg16.preprocess_input)
 image_generator = datagen.flow_from_dataframe(dataframe=X,
-                                              directory="./data/street_view/Los Angeles/images",
+                                              directory="./data/street_view/New York/images",
                                               x_col="filenames",
                                               target_size=(224, 224),
                                               color_mode="rgb",
@@ -47,4 +47,4 @@ image_generator.reset()
 
 # Write outputs to .csv files
 X.drop(columns="filenames", inplace=True)
-X.to_csv("X_la_vgg16.csv")
+X.to_csv("X_ny_vgg16.csv")

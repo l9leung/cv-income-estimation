@@ -95,7 +95,7 @@ def income_choropleth(city="Los Angeles", log=False, save=False):
         ax.set_title(f"Household Income in {city} (Log Dollars)")
 
     else:
-        acs[city].plot(column="B19013001_thousand", ax=ax, cmap="plasma",
+        acs[city].plot(column="B19013001_thousand", ax=ax, cmap="viridis",
                        legend=True, missing_kwds={"color": "lightgrey"})
         ax.set_title(f"Household Income in {city} (Thousands of Dollars)")
     ax.set_xlabel("Longitude")
