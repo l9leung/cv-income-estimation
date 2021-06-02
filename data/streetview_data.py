@@ -57,9 +57,9 @@ def get_images(blocks, width=600, height=400, heading=None, fov=90, pitch=0,
     source = "source=outdoor"
 
     for i, block in enumerate(blocks.keys()):
-        count = 0
+        count = 5
         tries = 0
-        while count < 5 and tries < 200:  # retrieve 5 images per block group
+        while count < 9 and tries < 200:  # retrieve up to 10 images per block group
             point = random_coord(blocks[block])
             coord = point.coords[0]  # note: this is in longitude, latitude
             location = f"location={coord[1]},{coord[0]}"  # location in latitude, longitude
@@ -82,7 +82,7 @@ def get_images(blocks, width=600, height=400, heading=None, fov=90, pitch=0,
                     with open(f"data/street_view/{city}/images/{block}_{count}.jpeg", "wb") as f:
                         f.write(response.content)
                     count += 1
-            if tries == 200:  # Cap at 200 requests
+            if tries == 300:  # Cap at 300 requests
                 zero_results.append(block)
 
     # Write coordinates of images to a geojson file
@@ -94,6 +94,8 @@ def get_images(blocks, width=600, height=400, heading=None, fov=90, pitch=0,
 
 
 if __name__ == "__main__":
+    city = sys.arvg[1]
+
     # city="Los Angeles"
     # with open(f"data/acs/{city}/acs2019_5yr_B19013_15000US060372732001.geojson", "r") as f:
     #     blocks = geojson.load(f)

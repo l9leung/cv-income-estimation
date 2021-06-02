@@ -3,8 +3,6 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.linear_model import LinearRegression
-from sklearn.linear_model import LassoCV
-from sklearn.linear_model import RidgeCV
 from sklearn.svm import SVR
 from sklearn.model_selection import train_test_split
 from data.acs_load import acs_load
@@ -55,13 +53,12 @@ def load_data(city="Los Angeles", split=False):
 
 
 if __name__ == "__main__":
-    geometries, X, y = load_data(city="Los Angeles")
+    city = "Los Angeles"
+    geometries, X, y = load_data(city)
 
     # Model objects
     ols = LinearRegression()
-    lasso = LassoCV(n_alphas=30, max_iter=2000, cv=3)
-    ridge = RidgeCV(alphas=np.arange(0.1, 10, 1), cv=3)
-    reg = SVR(C=20, gamma=0.0001)
+    svr = SVR(C=20, gamma=0.0001)
 
     # Train-test split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
@@ -82,27 +79,22 @@ if __name__ == "__main__":
 
     # Fit OLS
     ols.fit(X_train, y_train)
+    print(ols.score(X_train, y_train))
     print(ols.score(X_test, y_test))
-    # Fit LASSO
-    lasso.fit(X_train, y_train)
-    print(lasso.score(X_test, y_test))
-    # Fit Ridge
-    ridge.fit(X_train, y_train)
-    print(ridge.score(X_test, y_test))
     # Fit SVM
-    reg.fit(X_train, y_train)
-    print(reg.score(X_test, y_test))
-    print(reg.score(X_train, y_train))
+    svr.fit(X_train, y_train)
+    print(svr.score(X_train, y_train))
+    print(svr.score(X_test, y_test))
 
     # Get predictions
     comparison = geometries.loc[test_index, :]
-    comparison["predictions"] = reg.predict(X_test)
+    comparison["predictions"] = svr.predict(X_test)
     comparison = geometries[["geometry"]].merge(comparison[["log_B19013001", "predictions"]],
                                                 how="left",
                                                 left_index=True,
                                                 right_index=True)
     # Plot predictions vs actual
-    fig, axes = plt.subplots(1, 2, sharex=True, sharey=True, dpi=400)
+    fig, axes = plt.subplots(1, 2, sharex=True, sharey=True, dpi=200)
     comparison.plot(column="log_B19013001", ax=axes[0], cmap="viridis",
                     missing_kwds={"color": "lightgrey"},
                     vmin=8.44, vmax=12.5)
@@ -115,23 +107,23 @@ if __name__ == "__main__":
     axes[0].axis("off")
     axes[1].axis("off")
     axes[0].set_title("Actual Income")
-    axes[1].set_title("""Predicted $(R^2 = 0.48)$""")
+    axes[1].set_title("""Predicted Income $(R^2 = 0.48)$""")
     # plt.savefig("./model visualizations/predictions_map.png",
     #             bbox_inches="tight")
     plt.show()
 
-    plt.figure(dpi=400)
+    plt.figure(dpi=200)
     plt.scatter(comparison["predictions"], comparison["log_B19013001"],
                 s=2, color="#4A89F3")
     plt.xlabel("Predicted Log Income")
     plt.ylabel("Actual Log Income")
     plt.xlim(9, 13)
     plt.ylim(8, 13)
-    plt.text(12.5, 7.25, f"$n={len(y_test)}$")
-    # plt.savefig("./model visualizations/predictions_scatter.png",
-    #             bbox_inches="tight")
+    plt.axline(xy1=(0, 0), slope=1, linestyle="--", color="#EA4335")
+    plt.savefig("./model visualizations/predictions_scatter.png",
+                bbox_inches="tight")
     plt.show()
 
     # Test a model on New York
     geometries, X, y = load_data(city="New York")
-    print(reg.score(X[:, :-1], y))
+    print(svr.score(X[:, :-1], y))
