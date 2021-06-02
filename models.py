@@ -7,6 +7,7 @@ from sklearn.svm import SVR
 from sklearn.model_selection import train_test_split
 from data.acs_load import acs_load
 import matplotlib.pyplot as plt
+import contextily as ctx
 
 
 def load_data(city="Los Angeles", split=False):
@@ -57,7 +58,6 @@ if __name__ == "__main__":
     geometries, X, y = load_data(city)
 
     # Model objects
-    ols = LinearRegression()
     svr = SVR(C=20, gamma=0.0001)
 
     # Train-test split
@@ -68,19 +68,11 @@ if __name__ == "__main__":
     test_index = X_test[:, -1]
     X_test = X_test[:, :-1]
 
-    # Technical regressors
-    X_train = np.concatenate((X_train, X_train**2), axis=1)
-    X_test = np.concatenate((X_test, X_test**2), axis=1)
-
     # Normalize data
     scaler = MinMaxScaler(feature_range=(0, 1))
     X_train = scaler.fit_transform(X_train)
     X_test = scaler.transform(X_test)
 
-    # Fit OLS
-    ols.fit(X_train, y_train)
-    print(ols.score(X_train, y_train))
-    print(ols.score(X_test, y_test))
     # Fit SVM
     svr.fit(X_train, y_train)
     print(svr.score(X_train, y_train))
@@ -93,37 +85,70 @@ if __name__ == "__main__":
                                                 how="left",
                                                 left_index=True,
                                                 right_index=True)
+    # Conver geography to Web Mercator (EPSG 3857)
+    comparison = comparison.to_crs(epsg=3857)
     # Plot predictions vs actual
-    fig, axes = plt.subplots(1, 2, sharex=True, sharey=True, dpi=200)
+    fig, axes = plt.subplots(1, 2, sharex=True, sharey=True, dpi=200,
+                             figsize=(15, 10))
     comparison.plot(column="log_B19013001", ax=axes[0], cmap="viridis",
-                    missing_kwds={"color": "lightgrey"},
+                    missing_kwds={"color": "lightgrey"}, alpha=0.7,
                     vmin=8.44, vmax=12.5)
+    ctx.add_basemap(ax=axes[0], source=ctx.providers.CartoDB.Voyager)
     comparison.plot(column="predictions", ax=axes[1], cmap="viridis",
-                    missing_kwds={"color": "lightgrey"},
+                    missing_kwds={"color": "lightgrey"}, alpha=0.7,
                     vmin=8.44, vmax=12.5)
+    ctx.add_basemap(ax=axes[1], source=ctx.providers.CartoDB.Voyager)
     cols = axes[0].collections[0]
     colbar = fig.colorbar(cols, ax=axes, shrink=0.6)
     fig.patch.set_visible(False)
     axes[0].axis("off")
     axes[1].axis("off")
-    axes[0].set_title("Actual Income")
+    axes[0].set_title("True Income")
     axes[1].set_title("""Predicted Income $(R^2 = 0.48)$""")
     # plt.savefig("./model visualizations/predictions_map.png",
     #             bbox_inches="tight")
     plt.show()
 
+    # Scatter test set predictions
     plt.figure(dpi=200)
     plt.scatter(comparison["predictions"], comparison["log_B19013001"],
                 s=2, color="#4A89F3")
     plt.xlabel("Predicted Log Income")
-    plt.ylabel("Actual Log Income")
+    plt.ylabel("True Log Income")
     plt.xlim(9, 13)
     plt.ylim(8, 13)
     plt.axline(xy1=(0, 0), slope=1, linestyle="--", color="#EA4335")
-    plt.savefig("./model visualizations/predictions_scatter.png",
-                bbox_inches="tight")
+    # plt.savefig("./model visualizations/predictions_scatter.png",
+    #             bbox_inches="tight")
+    plt.show()
+
+    # Scatter train set predictions
+    plt.figure(dpi=200)
+    plt.scatter(svr.predict(X_train), y_train,
+                s=2, color="#4A89F3")
+    plt.xlabel("Predicted Log Income")
+    plt.ylabel("True Log Income")
+    plt.xlim(9, 13)
+    plt.ylim(8, 13)
+    plt.axline(xy1=(0, 0), slope=1, linestyle="--", color="#EA4335")
+    # plt.savefig("./model visualizations/predictions_scatter.png",
+    #             bbox_inches="tight")
     plt.show()
 
     # Test a model on New York
     geometries, X, y = load_data(city="New York")
-    print(svr.score(X[:, :-1], y))
+    X = X[:, :-1]
+    X = scaler.fit_transform(X)
+    print(svr.score(X, y))
+    # Scatter New York predictions
+    plt.figure(dpi=200)
+    plt.scatter(svr.predict(X), y,
+                s=2, color="#4A89F3")
+    plt.xlabel("Predicted Log Income")
+    plt.ylabel("True Log Income")
+    plt.xlim(9, 13)
+    plt.ylim(8, 13)
+    plt.axline(xy1=(0, 0), slope=1, linestyle="--", color="#EA4335")
+    # plt.savefig("./model visualizations/predictions_scatter.png",
+    #             bbox_inches="tight")
+    plt.show()

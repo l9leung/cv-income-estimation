@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 import random
 import matplotlib.pyplot as plt
+import contextily as ctx
 from data.acs_load import acs_load
 
 random.seed(123)
@@ -87,21 +88,26 @@ def income_histogram(city="Los Angeles", log=False, save=False):
 
 
 def income_choropleth(city="Los Angeles", log=False, save=False):
+    mercator = acs[city].to_crs(epsg=3857)
     """Maps median household income by block group."""
     fig, ax = plt.subplots(figsize=(15, 10))
     # alternative cmap: "RdYlGn_r"
     if log is True:
-        acs[city].plot(column="log_B19013001", ax=ax, cmap="plasma",
-                       legend=True, missing_kwds={"color": "lightgrey"})
+        mercator.plot(column="log_B19013001", ax=ax, cmap="plasma",
+                      legend=True, missing_kwds={"color": "lightgrey"},
+                      alpha=0.7)
+        ctx.add_basemap(ax=ax, source=ctx.providers.CartoDB.Voyager)
         # ax.set_title(f"Household Income in {city} (Log Dollars)")
 
     else:
-        acs[city].plot(column="B19013001_thousand", ax=ax, cmap="viridis",
-                       legend=True, missing_kwds={"color": "lightgrey"})
+        mercator.plot(column="B19013001_thousand", ax=ax, cmap="viridis",
+                      legend=True, missing_kwds={"color": "lightgrey"},
+                      alpha=0.7)
+        ctx.add_basemap(ax=ax, source=ctx.providers.CartoDB.Voyager)
         # ax.set_title(f"Household Income in {city} (Thousands of Dollars)")
     ax.set_xlabel("Longitude")
     ax.set_ylabel("Latitude")
-    # ax.set_axis_off()
+    ax.set_axis_off()
     if save is True:
         plt.savefig(f"data/visualizations/income_choro_{city}.png",
                     dpi=200,
