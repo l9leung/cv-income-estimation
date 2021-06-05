@@ -8,6 +8,7 @@ from data.acs_load import acs_load
 
 random.seed(123)
 
+
 def rand_block_groups(city="Los Angeles", save=False):
     """Plots 3 random block groups with their random coordinates."""
     fig, ax = plt.subplots(1, 3, figsize=(10, 5))
@@ -94,14 +95,16 @@ def income_choropleth(city="Los Angeles", log=False, save=False):
     # alternative cmap: "RdYlGn_r"
     if log is True:
         mercator.plot(column="log_B19013001", ax=ax, cmap="plasma",
-                      legend=True, missing_kwds={"color": "lightgrey"},
+                      legend=True,
+                       missing_kwds={"color": "lightgrey"},
                       alpha=0.7)
         ctx.add_basemap(ax=ax, source=ctx.providers.CartoDB.Voyager)
         # ax.set_title(f"Household Income in {city} (Log Dollars)")
 
     else:
         mercator.plot(column="B19013001_thousand", ax=ax, cmap="viridis",
-                      legend=True, missing_kwds={"color": "lightgrey"},
+                      legend=True,
+                       missing_kwds={"color": "lightgrey"},
                       alpha=0.7)
         ctx.add_basemap(ax=ax, source=ctx.providers.CartoDB.Voyager)
         # ax.set_title(f"Household Income in {city} (Thousands of Dollars)")
@@ -125,7 +128,6 @@ if __name__ == "__main__":
 
     for i, row in acs[city].sample(40, random_state=123).iterrows():
         plot_geoid(row["geoid"], row["B19013001_thousand"], save=False)
-
 
     fig, axes = plt.subplots(2, 3)
     geoids = ["15000US060371915001", "15000US060371920023"]
